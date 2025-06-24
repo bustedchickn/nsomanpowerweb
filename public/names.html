@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NSO MANPOWERS</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <header>
@@ -17,9 +19,10 @@
 
     <h2>Enter Names</h2>
     <p class="instruction">Enter each name on a new line in its respective box, then click the Process Names button.</p>
-    <form action="submit">
+    <form id='name_form' action="submit">
         <textarea name="pam names" id="pam_names"></textarea>
-        <textarea name="nso names" id="nso_names"></textarea>
+        <textarea name="nso coordinator names" id="coord_names"></textarea>
+        <textarea name="nso mentor names" id="nso_names"></textarea>
         <button>Process Names</button>
     </form>
     
@@ -27,5 +30,6 @@
     <footer class="footer">
         <img src="fyebluelogo.png" alt="byuilogo" class="byuilogo">
     </footer>
+    <script src="logic.js"></script>
 </body>
 </html>

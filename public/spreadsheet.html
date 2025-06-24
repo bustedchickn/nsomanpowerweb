@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NSO MANPOWERS</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <header>
@@ -15,15 +17,14 @@
         </nav>
     </header>
 
-    <h2>Build a MANPOWER Sheet</h2>
-    <p class="instruction">Input the number of events.</p>
-    <form action="submit">
-        <button>Generate Events</button>
-    </form>
-    
-    <button>Show Entries</button>
+    <h2>View assignments</h2>
+    <select id="conference_selector"></select>
+    <div id="assignment_matrix"></div>
+
     <footer class="footer">
         <img src="fyebluelogo.png" alt="byuilogo" class="byuilogo">
     </footer>
+    <script src="logic.js"></script>
+    <script src="previewpage.js"></script>
 </body>
 </html>
