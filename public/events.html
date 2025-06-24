@@ -8,7 +8,7 @@
 <body>
     <header>
         <nav>
-            <a href="index.html">Events</a>
+            <a href="events.html">Events</a>
             <a href="names.html">Names</a>
             <a href="tasks.html">Tasks</a>
             <a href="spreadsheet.html">Spreadsheet</a>
@@ -18,9 +18,14 @@
     <h2>Build a MANPOWER Sheet</h2>
     <p class="instruction">Input the number of events.</p>
     <form id="event_generator" action="submit">
+        <input type="text" placeholder="10" id="event_num" required>
         <button>Generate Events</button>
     </form>
     
+    <div id="event_container"></div>
+
+    
+
     <button id="show_entries">Show Entries</button>
     <table style="display: none;">
         <thead>
