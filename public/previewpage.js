@@ -31,13 +31,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     });
 
+    document.getElementById("assign_button").addEventListener("click", () => {change_thing()});
+
     selector.addEventListener("change", async () => {
+        change_thing()
         
+
+    });
+
+    async function change_thing() {
         const confId = selector.value;
         if (!confId) return;
 
         const workersSnap = await db.collection("workers").get();
-        const workers = workersSnap.docs.map(doc => doc.data());
+        const workersWithIds = workersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
 
         const eventsSnap = await db.collection("conferences")
             .doc(confId)
@@ -54,21 +62,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
         }
 
-        renderMatrix(workers, eventData);
-    });
+        await assignAndRenderMatrix(workersWithIds, eventData, confId);
+    }
 
-    function renderMatrix(workers, events) {
-        if (!matrixContainer) {
-            console.warn("No #assignment_matrix found.");
-            return;
-        }
-        matrixContainer.innerHTML = "";
+    async function assignAndRenderMatrix(workers, events, conferenceId) {
         const table = document.createElement("table");
         table.border = "1";
 
-        // Header row
         const header = document.createElement("tr");
-        header.appendChild(document.createElement("th")); // top-left corner
+        header.appendChild(document.createElement("th")); // Name column
         for (const event of events) {
             const th = document.createElement("th");
             th.textContent = event.title;
@@ -76,7 +78,43 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         table.appendChild(header);
 
-        // Each worker row
+        // Clear old assignments
+        for (const worker of workers) {
+            const workerRef = await db.collection("workers").doc(worker.id);
+            const existing = await workerRef.collection("assignments").get();
+            const batch = db.batch();
+            existing.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+        }
+
+        // Distribute tasks
+        const taskAssignments = {}; // eventId -> taskId -> [assignedWorkerIds]
+
+        for (const event of events) {
+            for (const task of event.tasks) {
+                const eligibleWorkers = workers.filter(w => task.roles.includes(w.role));
+                shuffleArray(eligibleWorkers);
+                const assigned = eligibleWorkers.slice(0, task.requiredCount);
+
+                taskAssignments[event.id] ??= {};
+                taskAssignments[event.id][task.description] = assigned;
+
+                for (const worker of assigned) {
+                    const ref = db.collection("workers").doc(worker.id)
+                        .collection("assignments").doc();
+
+                    await ref.set({
+                        eventId: event.id,
+                        taskId: task.id || "", // Save if task has ID
+                        taskDescription: task.description,
+                        conferenceId,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+            }
+        }
+
+        // Render matrix
         for (const worker of workers) {
             const row = document.createElement("tr");
             const nameCell = document.createElement("td");
@@ -85,26 +123,32 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             for (const event of events) {
                 const cell = document.createElement("td");
-                const relevantTasks = event.tasks.filter(task =>
-                    task.roles.includes(worker.role)
-                );
+                const assignedTasks = [];
 
-                if (relevantTasks.length > 0) {
-                    relevantTasks.forEach(task => {
-                        const div = document.createElement("div");
-                        div.textContent = `• ${task.description} (${task.requiredCount})`;
-                        cell.appendChild(div);
-                    });
-                } else {
-                    cell.textContent = "-";
+                for (const task of event.tasks) {
+                    const assigned = taskAssignments[event.id]?.[task.description] || [];
+                    if (assigned.some(w => w.id === worker.id)) {
+                        assignedTasks.push(`• ${task.description}`);
+                    }
                 }
 
+                cell.textContent = assignedTasks.length > 0 ? assignedTasks.join("\n") : "-";
                 row.appendChild(cell);
             }
 
             table.appendChild(row);
         }
 
+        matrixContainer.innerHTML = "";
         matrixContainer.appendChild(table);
     }
+
+    // Utility
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
 });
