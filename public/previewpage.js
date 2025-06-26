@@ -1,7 +1,22 @@
 document.addEventListener("DOMContentLoaded", async () => {
+    const firebaseConfig = {
+        apiKey: "AIzaSyBAjMXpCk3G7vL17OpTCwWuVp_c7nSKiEc",
+        authDomain: "nsomanpowerweb.firebaseapp.com",
+        projectId: "nsomanpowerweb",
+        storageBucket: "nsomanpowerweb.firebasestorage.app",
+        messagingSenderId: "293078398444",
+        appId: "1:293078398444:web:4a0ebb1e14f5dc8363bcc9",
+        measurementId: "G-MWK33F0V4B"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
     const db = firebase.firestore();
     const selector = document.getElementById("conference_selector");
     const matrixContainer = document.getElementById("assignment_matrix");
+    
+    
 
     const snapshot = await db.collection("conferences").get();
     snapshot.forEach(doc => {
@@ -9,9 +24,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         option.value = doc.id;
         option.textContent = doc.data().name;
         selector.appendChild(option);
+        if (selector.options.length > 0) {
+            selector.value = selector.options[0].value;
+            selector.dispatchEvent(new Event("change"));
+        }
+
     });
 
     selector.addEventListener("change", async () => {
+        
         const confId = selector.value;
         if (!confId) return;
 
@@ -37,6 +58,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     function renderMatrix(workers, events) {
+        if (!matrixContainer) {
+            console.warn("No #assignment_matrix found.");
+            return;
+        }
         matrixContainer.innerHTML = "";
         const table = document.createElement("table");
         table.border = "1";

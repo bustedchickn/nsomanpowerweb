@@ -20,6 +20,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentEventNum = 0;
 
     let selectedConferenceId = null;
+    let deletedTaskIds = new Set();
+    let deletedEventIds = new Set();
+
+
     const savedId = localStorage.getItem("selectedConferenceId");
     if (savedId) {
         selectedConferenceId = savedId;
@@ -72,6 +76,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function loadEventsForConference(conferenceId) {
         const container = document.getElementById("event_container");
+        
+        if (!container) return;
         container.innerHTML = "";
 
         const eventsRef = db.collection("conferences").doc(conferenceId).collection("events");
@@ -327,8 +333,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function createEventTaskCard(eventId, eventTitle) {
-        
-
         const card = document.createElement("div");
         card.classList.add("event-task-card");
         card.setAttribute("data-event-id", eventId);
@@ -349,11 +353,22 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         card.appendChild(addTaskBtn);
 
-        taskContainer.appendChild(card);
-        taskContainer.appendChild(document.createElement("hr"));
-        loadSavedTasks(eventId, taskList); // NEW
+        // DELETE EVENT BUTTON
+        const deleteEventBtn = document.createElement("button");
+        deleteEventBtn.textContent = "Delete Event";
+        deleteEventBtn.style.backgroundColor = "darkred";
+        deleteEventBtn.style.color = "white";
+        deleteEventBtn.style.marginTop = "8px";
+        deleteEventBtn.addEventListener("click", () => {
+            deletedEventIds.add(eventId);
+            card.remove();
+        });
+        card.appendChild(deleteEventBtn);
 
+        taskContainer.appendChild(card);
+        loadSavedTasks(eventId, taskList);
     }
+
 
     async function loadSavedTasks(eventId, taskList) {
         const conferenceId = localStorage.getItem("selectedConferenceId");
@@ -366,14 +381,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
         snapshot.forEach(doc => {
             const taskData = doc.data();
-            const taskElement = createTaskElement(taskData);
+            const taskElement = createTaskElement(taskData, doc.id);
             taskList.appendChild(taskElement);
         });
     }
 
-    function createTaskElement(taskData = {}) {
+    function createTaskElement(taskData = {}, taskId = null) {
         const wrapper = document.createElement("div");
         wrapper.classList.add("task");
+
+        if (taskId) {
+            wrapper.setAttribute("data-task-id", taskId);
+        }
 
         const desc = document.createElement("textarea");
         desc.placeholder = "Task description";
@@ -399,8 +418,21 @@ document.addEventListener("DOMContentLoaded", () => {
             wrapper.appendChild(label);
         });
 
+        // DELETE BUTTON
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "Delete";
+        deleteBtn.classList.add("delete-task");
+        deleteBtn.addEventListener("click", () => {
+            const id = wrapper.getAttribute("data-task-id");
+            if (id) deletedTaskIds.add(id); // Mark it for deletion
+            wrapper.remove(); // Remove from DOM
+        });
+        wrapper.appendChild(deleteBtn);
+
         return wrapper;
     }
+
+
     async function loadWorkersByRole(roleId, roleName) {
         const textarea = document.getElementById(roleId);
         if (!textarea) return;
@@ -434,38 +466,95 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function saveTasksToFirestore() {
         const cards = document.querySelectorAll(".event-task-card");
+        
 
         for (const card of cards) {
             const eventId = card.getAttribute("data-event-id");
-            const eventTitle = card.querySelector("h3").textContent;
+            if (deletedEventIds.has(eventId)) continue;
             const tasks = card.querySelectorAll(".task");
+            
 
             for (const task of tasks) {
                 const description = task.querySelector("textarea").value.trim();
                 const selectedRoles = Array.from(task.querySelectorAll("input[type='checkbox']:checked"))
                     .map(cb => cb.value);
+                const requiredCount = parseInt(task.querySelector("input[type='number']").value);
+                const taskId = task.getAttribute("data-task-id");
 
                 if (!description || selectedRoles.length === 0) continue;
 
-                const requiredCount = parseInt(task.querySelector("input[type='number']").value);
-
-                await db.collection("conferences")
+                const taskRef = db.collection("conferences")
                     .doc(selectedConferenceId)
                     .collection("events")
                     .doc(eventId)
-                    .collection("tasks")
-                    .add({
+                    .collection("tasks");
+
+                if (taskId) {
+                    // Update existing task
+                    await taskRef.doc(taskId).set({
+                        description,
+                        roles: selectedRoles,
+                        requiredCount,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    // Add new task
+                    const newDoc = await taskRef.add({
                         description,
                         roles: selectedRoles,
                         requiredCount,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
-
+                    task.setAttribute("data-task-id", newDoc.id); // Save the new ID
+                }
             }
         }
 
+            // After saving/updating all tasks:
+        // Delete tasks
+        if (deletedTaskIds.size > 0) {
+            for (const card of cards) {
+                const eventId = card.getAttribute("data-event-id");
+                for (const taskId of deletedTaskIds) {
+                    await db.collection("conferences")
+                        .doc(selectedConferenceId)
+                        .collection("events")
+                        .doc(eventId)
+                        .collection("tasks")
+                        .doc(taskId)
+                        .delete();
+                }
+            }
+            deletedTaskIds.clear();
+        }
+
+        // Delete events (and all their tasks)
+        for (const eventId of deletedEventIds) {
+            const tasksRef = db.collection("conferences")
+                .doc(selectedConferenceId)
+                .collection("events")
+                .doc(eventId)
+                .collection("tasks");
+
+            const taskSnapshot = await tasksRef.get();
+            for (const task of taskSnapshot.docs) {
+                await task.ref.delete();
+            }
+
+            await db.collection("conferences")
+                .doc(selectedConferenceId)
+                .collection("events")
+                .doc(eventId)
+                .delete();
+        }
+
+        deletedEventIds.clear();
+
+
         alert("Tasks saved!");
+
     }
+
 
 
 

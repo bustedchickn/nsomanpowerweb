@@ -10,3 +10,11 @@
   background: #f9f9f9;
   border-left: 3px solid #ccc;
 }
+.delete-task {
+    margin-top: 8px;
+    color: white;
+    background-color: red;
+    border: none;
+    padding: 4px 8px;
+    cursor: pointer;
+}
