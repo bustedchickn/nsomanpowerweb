@@ -14,16 +14,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const eventForm = document.getElementById("event_generator");
     const eventBtn = document.getElementById("show_entries");
-    const container = document.getElementById("event_container");
+    const event_container = document.getElementById("event_container");
     const nameForm = document.getElementById("name_form");
     
     let currentEventNum = 0;
 
     let selectedConferenceId = null;
+    const savedId = localStorage.getItem("selectedConferenceId");
+    if (savedId) {
+        selectedConferenceId = savedId;
+        loadEventsForConference(savedId);
+    }
+
 
     // Load all conferences
     async function loadConferences() {
         const selector = document.getElementById("conference_selector");
+        if (!selector) return;
         selector.innerHTML = "";
 
         const snapshot = await db.collection("conferences").get();
@@ -77,6 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function createEditableEventCard(eventId, eventData) {
         const container = document.getElementById("event_container");
+        if (!container) return;
 
         const card = document.createElement("div");
         card.classList.add("event-card");
@@ -168,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
         currentEventNum = eventNum; // save for later
         console.log(`Creating ${eventNum} events.`);
 
-        container.innerHTML = "";
+        event_container.innerHTML = "";
 
         for (let i = 1; i <= eventNum; i++) {
             const eventCard = document.createElement("div");
@@ -194,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
             eventCard.appendChild(document.createElement("br"));
             eventCard.appendChild(descInput);
 
-            container.appendChild(eventCard);
+            event_container.appendChild(eventCard);
         }
     }
 
@@ -297,6 +305,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 .collection("conferences")
                 .doc(conferenceId)
                 .collection("events")
+                .orderBy("createdAt")
                 .get();
 
             if (eventsSnapshot.empty) {
@@ -341,8 +350,26 @@ document.addEventListener("DOMContentLoaded", () => {
         card.appendChild(addTaskBtn);
 
         taskContainer.appendChild(card);
+        taskContainer.appendChild(document.createElement("hr"));
+        loadSavedTasks(eventId, taskList); // NEW
+
     }
 
+    async function loadSavedTasks(eventId, taskList) {
+        const conferenceId = localStorage.getItem("selectedConferenceId");
+        const snapshot = await db.collection("conferences")
+            .doc(conferenceId)
+            .collection("events")
+            .doc(eventId)
+            .collection("tasks")
+            .get();
+
+        snapshot.forEach(doc => {
+            const taskData = doc.data();
+            const taskElement = createTaskElement(taskData);
+            taskList.appendChild(taskElement);
+        });
+    }
 
     function createTaskElement(taskData = {}) {
         const wrapper = document.createElement("div");
@@ -374,6 +401,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
         return wrapper;
     }
+    async function loadWorkersByRole(roleId, roleName) {
+        const textarea = document.getElementById(roleId);
+        if (!textarea) return;
+
+        const snapshot = await db.collection("workers")
+            .where("role", "==", roleName)
+            .get();
+
+        const names = [];
+        snapshot.forEach(doc => names.push(doc.data().name));
+        textarea.value = names.join("\n");
+    }
+
+    // Calls:
+    if (document.getElementById("pam_names")) loadWorkersByRole("pam_names", "pre-arrival mentor");
+    if (document.getElementById("coord_names")) loadWorkersByRole("coord_names", "nsm coordinator");
+    if (document.getElementById("nso_names")) loadWorkersByRole("nso_names", "new student mentor");
+
 
 
     function addTaskButton(taskList) {
@@ -385,7 +430,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         return btn;
     }
-
+    if (document.getElementById("save_tasks")) document.getElementById("save_tasks").addEventListener("click", () => {saveTasksToFirestore()});
 
     async function saveTasksToFirestore() {
         const cards = document.querySelectorAll(".event-task-card");
